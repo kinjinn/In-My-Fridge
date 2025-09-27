@@ -9,7 +9,7 @@ class NetworkService {
     // Add this function inside the NetworkService class
 
     func addIngredient(name: String, quantity: String, accessToken: String, completion: @escaping (Ingredient?, Error?) -> Void) {
-        guard let url = URL(string: "http://localhost:5001/api/ingredients") else { return }
+        guard let url = URL(string: "http://10.108.28.77:5001/api/ingredients") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -44,7 +44,7 @@ class NetworkService {
     
     func fetchIngredients(accessToken: String, completion: @escaping ([Ingredient]?, Error?) -> Void) {
         // 1. Set up the URL
-        guard let url = URL(string: "http://localhost:5001/api/ingredients") else {
+        guard let url = URL(string: "http://10.108.28.77:5001/api/ingredients") else {
             completion(nil, NSError(domain: "NetworkService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"]))
             return
         }
@@ -114,7 +114,7 @@ class NetworkService {
     }
     // Inside the NetworkService class in NetworkService.swift
     func generateRecipes(ingredients: [String], accessToken: String, completion: @escaping ([Recipe]?, Error?) -> Void) {
-        guard let url = URL(string: "http://localhost:5001/api/recipes/generate") else { return }
+        guard let url = URL(string: "http://10.108.28.77:5001/api/recipes/generate") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
