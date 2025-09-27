@@ -28,6 +28,10 @@
 
     const ingredientRoutes = require('./routes/ingredients');
     app.use('/api/ingredients', ingredientRoutes); // All routes in ingredients.js will be prefixed with /api/ingredients
+    
+    //Recipe Routes
+    const recipeRoutes = require('./routes/recipes');
+    app.use('/api/recipes', recipeRoutes);
 
     // --- Start the Server ---
     app.listen(PORT, () => {
