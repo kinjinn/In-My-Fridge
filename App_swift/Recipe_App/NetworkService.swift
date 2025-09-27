@@ -41,6 +41,7 @@ class NetworkService {
         }.resume()
     }
     
+    
     func fetchIngredients(accessToken: String, completion: @escaping ([Ingredient]?, Error?) -> Void) {
         // 1. Set up the URL
         guard let url = URL(string: "http://localhost:5001/api/ingredients") else {
@@ -110,5 +111,37 @@ class NetworkService {
                 }
             }
         }.resume() // Don't forget to start the task!
+    }
+    // Inside the NetworkService class in NetworkService.swift
+    func generateRecipes(ingredients: [String], accessToken: String, completion: @escaping ([Recipe]?, Error?) -> Void) {
+        guard let url = URL(string: "http://localhost:5001/api/recipes/generate") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Encode the ingredients array into JSON data
+        let body = ["ingredients": ingredients]
+        request.httpBody = try? JSONEncoder().encode(body)
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let data = data {
+                do {
+                    let recipes = try JSONDecoder().decode([Recipe].self, from: data)
+                    DispatchQueue.main.async {
+                        completion(recipes, nil)
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        completion(nil, error)
+                    }
+                }
+            } else if let error = error {
+                DispatchQueue.main.async {
+                    completion(nil, error)
+                }
+            }
+        }.resume()
     }
 }
