@@ -67,6 +67,7 @@ router.post('/parse-preview', checkJwt, async (req, res) => {
           Your response MUST be a valid JSON array of objects. Do not include any text, notes, or markdown before or after the JSON array.
           Each object must have the structure: {"name": "ingredient_name", "quantity": "ingredient_quantity"}.
           If a quantity is not specified, use "1" as the default quantity.
+          Quantity should not be letters.
       `;
 
       const result = await model.generateContent(prompt);
