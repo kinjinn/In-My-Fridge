@@ -17,7 +17,7 @@ router.post('/generate', checkJwt, async (req, res) => {
       return res.status(400).json({ message: 'Ingredients are required.' });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     // --- This is our Prompt Engineering! ---
     const prompt = `
