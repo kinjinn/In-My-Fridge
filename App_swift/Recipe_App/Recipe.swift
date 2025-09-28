@@ -4,7 +4,7 @@ import Foundation
 struct Recipe: Codable, Identifiable {
     let id = UUID() // Add a unique ID for SwiftUI
     let title: String
-    let description: String
+    let description: String?
     let ingredients_used: [String]
     let instructions: [String]
 
