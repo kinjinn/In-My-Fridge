@@ -10,7 +10,7 @@ class NetworkService {
     // MARK: - Standard Ingredient and Recipe Functions
     
     func addIngredient(name: String, quantity: String, accessToken: String, completion: @escaping (Ingredient?, Error?) -> Void) {
-        guard let url = URL(string: "http://10.108.28.77:5001/api/ingredients") else { return }
+        guard let url = URL(string: "http://192.168.1.214:5001/api/ingredients") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -35,7 +35,7 @@ class NetworkService {
     }
     
     func fetchIngredients(accessToken: String, completion: @escaping ([Ingredient]?, Error?) -> Void) {
-        guard let url = URL(string: "http://10.108.28.77:5001/api/ingredients") else { return }
+        guard let url = URL(string: "http://192.168.1.214:5001/api/ingredients") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -56,7 +56,7 @@ class NetworkService {
     }
     
     func generateRecipes(ingredients: [String], accessToken: String, completion: @escaping ([Recipe]?, Error?) -> Void) {
-        guard let url = URL(string: "http://10.108.28.77:5001/api/recipes/generate") else { return }
+        guard let url = URL(string: "http://192.168.1.214:5001/api/recipes/generate") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -84,7 +84,7 @@ class NetworkService {
     
     // 2. This function uploads the image and decodes the AI's response
     func scanIngredients(from image: UIImage, accessToken: String, completion: @escaping ([ScannedIngredient]?, Error?) -> Void) {
-        guard let url = URL(string: "http://10.108.28.77:5001/api/ingredients/scan") else { return }
+        guard let url = URL(string: "http://192.168.1.214:5001/api/ingredients/scan") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -118,7 +118,7 @@ class NetworkService {
     
     // 3. This function sends the scanned ingredients to be saved in the database
     func batchAddIngredients(ingredients: [ScannedIngredient], accessToken: String, completion: @escaping ([Ingredient]?, Error?) -> Void) {
-        guard let url = URL(string: "http://10.108.28.77:5001/api/ingredients/batch-add") else { return }
+        guard let url = URL(string: "http://192.168.1.214:5001/api/ingredients/batch-add") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

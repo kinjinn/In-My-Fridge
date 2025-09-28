@@ -75,7 +75,7 @@ router.post("/scan", checkJwt, upload.single("image"), async (req, res) => {
       return res.status(400).json({ message: "No image file uploaded." });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const imagePart = {
       inlineData: {
@@ -100,7 +100,9 @@ router.post("/scan", checkJwt, upload.single("image"), async (req, res) => {
     console.log(text);
     console.log("-------------------------------------");
 
-    const jsonResponse = JSON.parse(text);
+    const jsonResponse = JSON.parse(
+      text.replace(/```json/g, "").replace(/```/g, "")
+    );
     res.json(jsonResponse);
   } catch (error) {
     console.error("Error scanning image:", error);

@@ -1,3 +1,4 @@
+// ContentView.swift
 import SwiftUI
 import Auth0
 
@@ -79,7 +80,7 @@ struct ContentView: View {
             ImagePicker(image: $capturedImage)
         }
         .onChange(of: capturedImage) {
-            if let image = capturedImage{
+            if let image = capturedImage {
                 uploadScannedImage(image: image)
                 capturedImage = nil
             }
@@ -105,7 +106,7 @@ struct ContentView: View {
     
     // MARK: - Network and helper functions
     
-    // ✅ THIS FUNCTION IS NOW COMPLETE
+    // ✅ THIS FUNCTION IS NOW FINAL AND USES THE REAL NETWORKING LOGIC
     func uploadScannedImage(image: UIImage) {
         guard let accessToken = authManager.accessToken else { return }
         
@@ -120,7 +121,7 @@ struct ContentView: View {
                 return
             }
             
-            print("2. Scanned \(ingredientsToAdd.count) ingredients from image. Now saving to database...")
+            print("2. Scanned \(ingredientsToAdd.count) ingredients. Now saving to database...")
             
             // Step 2: Send that list to the server to be saved in the database
             NetworkService.shared.batchAddIngredients(ingredients: ingredientsToAdd, accessToken: accessToken) { newIngredients, error in
