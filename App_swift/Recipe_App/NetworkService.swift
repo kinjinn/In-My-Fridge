@@ -1,147 +1,113 @@
-// NetworkService.swift
 import Foundation
 
+fileprivate struct IngredientPreview: Decodable { let name: String, quantity: String }
+
 class NetworkService {
-    // A shared instance for easy access
     static let shared = NetworkService()
+    private let baseURL = "http://localhost:5001/api"
     private init() {}
-    
-    // Add this function inside the NetworkService class
+
+    func fetchIngredients(accessToken: String, completion: @escaping ([Ingredient]?, Error?) -> Void) {
+        performRequest(endpoint: "/ingredients", method: "GET", accessToken: accessToken, completion: completion)
+    }
 
     func addIngredient(name: String, quantity: String, accessToken: String, completion: @escaping (Ingredient?, Error?) -> Void) {
-        guard let url = URL(string: "http://localhost:5001/api/ingredients") else { return }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        // Prepare the data to send in the request body
         let body = ["name": name, "quantity": quantity]
+        performRequest(endpoint: "/ingredients", method: "POST", body: body, accessToken: accessToken, completion: completion)
+    }
+    
+    func deleteIngredient(id: String, accessToken: String, completion: @escaping (Bool, Error?) -> Void) {
+        guard let url = URL(string: "\(baseURL)/ingredients/\(id)") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        URLSession.shared.dataTask(with: request) { _, response, error in
+            DispatchQueue.main.async {
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    completion(true, nil)
+                } else { completion(false, error) }
+            }
+        }.resume()
+    }
+
+    func updateIngredientQuantity(id: String, newQuantity: String, accessToken: String, completion: @escaping (Ingredient?, Error?) -> Void) {
+        guard let url = URL(string: "http://localhost:5001/api/ingredients/\(id)") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Encode the new quantity in the request body
+        let body = ["quantity": newQuantity]
         request.httpBody = try? JSONEncoder().encode(body)
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let data = data {
-                do {
-                    // The server responds with the newly created ingredient
-                    let newIngredient = try JSONDecoder().decode(Ingredient.self, from: data)
-                    DispatchQueue.main.async {
-                        completion(newIngredient, nil)
-                    }
-                } catch {
-                    DispatchQueue.main.async {
-                        completion(nil, error)
-                    }
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            DispatchQueue.main.async {
+                guard let data = data, error == nil else {
+                    completion(nil, error)
+                    return
                 }
-            } else if let error = error {
-                DispatchQueue.main.async {
+                do {
+                    let updatedIngredient = try JSONDecoder().decode(Ingredient.self, from: data)
+                    completion(updatedIngredient, nil)
+                } catch {
                     completion(nil, error)
                 }
             }
         }.resume()
     }
-    
-    
-    func fetchIngredients(accessToken: String, completion: @escaping ([Ingredient]?, Error?) -> Void) {
-        // 1. Set up the URL
-        guard let url = URL(string: "http://localhost:5001/api/ingredients") else {
-            completion(nil, NSError(domain: "NetworkService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"]))
-            return
-        }
 
-        // 2. Create the URLRequest and add the Authorization header
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        // --- ADD THIS DEBUG CODE ---
-        print("--- Sending Token to Server ---")
-        print("Value being sent: Bearer \(accessToken)")
-        print("-----------------------------")
-        // --- END DEBUG CODE ---
-        
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        
-        
-        // 3. Create and run the data task
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            // Handle errors
-            if let error = error {
-                DispatchQueue.main.async {
-                    completion(nil, error)
-                }
-                return
-            }
-
-            // Ensure we have data
-            guard let data = data else {
-                DispatchQueue.main.async {
-                    completion(nil, NSError(domain: "NetworkService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No data received"]))
-                }
-                return
-            }
-            
-            // ... inside your dataTask completion handler, right after you check for data ...
-
-            // This will print EXACTLY what the server sent to your app
-            if let jsonString = String(data: data, encoding: .utf8) {
-                print("--- ACTUAL SERVER RESPONSE ---")
-                print(jsonString)
-                print("----------------------------")
-            }
-
-            do {
-                let ingredients = try JSONDecoder().decode([Ingredient].self, from: data)
-                // ...
-            } catch {
-                // This will print the precise reason the decoding failed
-                print("--- PRECISE DECODING ERROR ---")
-                print(error)
-                print("------------------------------")
-                // ...
-            }
-
-            // 4. Decode the JSON data into our Ingredient structs
-            do {
-                let ingredients = try JSONDecoder().decode([Ingredient].self, from: data)
-                DispatchQueue.main.async {
-                    completion(ingredients, nil)
-                }
-            } catch let decodingError {
-                DispatchQueue.main.async {
-                    completion(nil, decodingError)
-                }
-            }
-        }.resume() // Don't forget to start the task!
-    }
-    // Inside the NetworkService class in NetworkService.swift
-    func generateRecipes(ingredients: [String], accessToken: String, completion: @escaping ([Recipe]?, Error?) -> Void) {
-        guard let url = URL(string: "http://localhost:5001/api/recipes/generate") else { return }
-
+    func parseTextForPreview(text: String, accessToken: String, completion: @escaping ([Ingredient]?, Error?) -> Void) {
+        guard let url = URL(string: "\(baseURL)/ingredients/parse-preview") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        // Encode the ingredients array into JSON data
-        let body = ["ingredients": ingredients]
-        request.httpBody = try? JSONEncoder().encode(body)
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let data = data {
+        request.httpBody = try? JSONEncoder().encode(["text": text])
+        
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            DispatchQueue.main.async {
+                guard let data = data, error == nil else { completion(nil, error); return }
                 do {
-                    let recipes = try JSONDecoder().decode([Recipe].self, from: data)
-                    DispatchQueue.main.async {
-                        completion(recipes, nil)
-                    }
+                    let previewItems = try JSONDecoder().decode([IngredientPreview].self, from: data)
+                    let ingredients = previewItems.map { Ingredient(id: UUID().uuidString, name: $0.name, quantity: $0.quantity) }
+                    completion(ingredients, nil)
+                } catch { completion(nil, error) }
+            }
+        }.resume()
+    }
+    
+    func generateRecipes(ingredients: [String], accessToken: String, completion: @escaping ([Recipe]?, Error?) -> Void) {
+        let body = ["ingredients": ingredients]
+        performRequest(endpoint: "/recipes/generate", method: "POST", body: body, accessToken: accessToken, completion: completion)
+    }
+
+    private func performRequest<T: Decodable, B: Encodable>(endpoint: String, method: String, body: B? = nil, accessToken: String, completion: @escaping (T?, Error?) -> Void) {
+        guard let url = URL(string: "\(baseURL)\(endpoint)") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        if body != nil {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try? JSONEncoder().encode(body)
+        }
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            DispatchQueue.main.async {
+                guard let data = data, error == nil else { completion(nil, error); return }
+                do {
+                    completion(try JSONDecoder().decode(T.self, from: data), nil)
                 } catch {
-                    DispatchQueue.main.async {
-                        completion(nil, error)
-                    }
-                }
-            } else if let error = error {
-                DispatchQueue.main.async {
+                    print("❗️DECODING ERROR for \(T.self): \(error)")
                     completion(nil, error)
                 }
             }
         }.resume()
+    }
+}
+
+extension NetworkService {
+    private func performRequest<T: Decodable>(endpoint: String, method: String, accessToken: String, completion: @escaping (T?, Error?) -> Void) {
+        performRequest(endpoint: endpoint, method: method, body: Optional<String>.none, accessToken: accessToken, completion: completion)
     }
 }

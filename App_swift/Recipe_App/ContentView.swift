@@ -1,146 +1,178 @@
 import SwiftUI
-import Auth0
 
 struct ContentView: View {
     @StateObject var authManager = AuthenticationManager()
     
+    // Data for the app
     @State private var ingredients: [Ingredient] = []
     @State private var recipes: [Recipe] = []
-    @State private var isLoading = false
     
-    @State private var newIngredientName = ""
-    @State private var newIngredientQuantity = ""
-    
+    // State for UI
     @State private var selectedTab: Tab = .fridge
+    @State private var isLoading = false
+    @State private var hasFetchedInitialData = false
     
-    enum Tab {
-        case fridge, recipes
-    }
+    // State for sheets
+    @State private var ingredientsToConfirm: [Ingredient] = []
+    @State private var showingConfirmationSheet = false
+    @State private var showingVoiceInput = false
+
+    enum Tab { case fridge, recipes }
     
     var body: some View {
         VStack(spacing: 0) {
-            if authManager.isAuthenticated, let accessToken = authManager.accessToken {
-                // Show content based on selected tab
-                switch selectedTab {
-                case .fridge:
-                    IngredientsView(
-                        ingredients: $ingredients,
-                        newIngredientName: $newIngredientName,
-                        newIngredientQuantity: $newIngredientQuantity,
-                        isLoading: $isLoading,
-                        onAddIngredient: addIngredient,
-                        onGenerateRecipes: { generateRecipes(token: accessToken) }
-                    )
-                    .onAppear {
-                        fetchIngredients()
-                    }
-                    
-                case .recipes:
-                    RecipesView(recipes: $recipes)
-                }
-                
-                // Custom Tab Bar
-                HStack(spacing: 0) {
-                    tabButton(title: "Fridge", isSelected: selectedTab == .fridge) {
-                        selectedTab = .fridge
-                    }
-                    tabButton(title: "Recipes", isSelected: selectedTab == .recipes) {
-                        selectedTab = .recipes
-                    }
-                }
-                .background(Color(UIColor.systemGray5))
-                .cornerRadius(12)
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                
-                // Log Out button at bottom
-                Button("Log Out", action: authManager.logout)
-                    .padding(.bottom)
-                    .foregroundColor(.blue)
-                
+            if authManager.isAuthenticated {
+                loggedInContent
             } else {
-                // Logged out view
-                VStack {
-                    Text("Recipe App 🍳")
-                        .font(.largeTitle)
-                        .padding()
-                    Button("Log In", action: authManager.login)
-                        .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.systemBackground))
+                loggedOutContent
             }
         }
-        .padding()
-        .background(Color(UIColor.systemGray6).ignoresSafeArea())
+        .background(Color(.systemGray6).ignoresSafeArea())
+    }
+
+    @ViewBuilder
+    private var loggedInContent: some View {
+        Group {
+            if selectedTab == .fridge {
+                IngredientsView(
+                    ingredients: $ingredients,
+                    isLoading: $isLoading,
+                    onDelete: deleteIngredient,
+                    onSaveQuantity: saveNewQuantity,
+                    onAdd: addIngredient,
+                    onGenerate: generateRecipes,
+                    onAddByVoice: { showingVoiceInput = true }
+                )
+            } else {
+                RecipesView(recipes: $recipes)
+            }
+        }
+        .onAppear {
+            if !hasFetchedInitialData {
+                fetchIngredients()
+                hasFetchedInitialData = true
+            }
+        }
+        .sheet(isPresented: $showingVoiceInput) {
+            VoiceRecognitionView { text in
+                showingVoiceInput = false
+                addIngredientsFromVoice(text: text)
+            }
+        }
+        .sheet(isPresented: $showingConfirmationSheet) {
+            // Use the new, separate view to prevent rendering bugs
+            ConfirmationSheetView(
+                ingredientsToConfirm: self.ingredientsToConfirm,
+                onCancel: { showingConfirmationSheet = false },
+                onConfirm: {
+                    confirmAndAddIngredients()
+                    showingConfirmationSheet = false
+                }
+            )
+        }
+
+        // Custom Tab Bar
+        HStack(spacing: 0) {
+            tabButton(title: "Fridge", isSelected: selectedTab == .fridge) { selectedTab = .fridge }
+            tabButton(title: "Recipes", isSelected: selectedTab == .recipes) { selectedTab = .recipes }
+        }
+        .background(Color(.systemGray5)).cornerRadius(12).padding()
+        
+        Button("Log Out", action: authManager.logout).foregroundColor(.blue).padding(.bottom)
+    }
+
+    @ViewBuilder
+    private var loggedOutContent: some View {
+        VStack {
+            Text("Recipe App 🍳").font(.largeTitle).padding()
+            Button("Log In", action: authManager.login).buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.clear)
+        .onAppear {
+            // Reset state on logout
+            hasFetchedInitialData = false
+            ingredients = []
+            recipes = []
+        }
     }
     
     @ViewBuilder
     func tabButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .frame(maxWidth: .infinity)
-                .padding()
+                .frame(maxWidth: .infinity).padding()
                 .background(isSelected ? Color.purple.opacity(0.2) : Color.clear)
                 .foregroundColor(isSelected ? .purple : .primary)
                 .cornerRadius(10)
         }
     }
-    
-    // MARK: - Network and helper functions (unchanged)
-    
+
+    // MARK: - Helper Functions
     func fetchIngredients() {
-        guard let accessToken = authManager.accessToken else { return }
-        
-        NetworkService.shared.fetchIngredients(accessToken: accessToken) { fetchedIngredients, error in
-            if let error = error {
-                print("❌ Error fetching ingredients: \(error.localizedDescription)")
-                // Clear the list if there's an error (like user not found)
-                self.ingredients = []
-                return
-            }
-            if let fetchedIngredients = fetchedIngredients {
-                print("✅ Successfully fetched \(fetchedIngredients.count) ingredients.")
-                self.ingredients = fetchedIngredients
-            }
-        }
-    }
-    
-    func addIngredient() {
-        guard !newIngredientName.isEmpty, let accessToken = authManager.accessToken else { return }
-        
-        NetworkService.shared.addIngredient(name: newIngredientName, quantity: newIngredientQuantity, accessToken: accessToken) { newIngredient, error in
-            if let error = error {
-                print("❌ Error adding ingredient: \(error.localizedDescription)")
-                return
-            }
-            
-            if newIngredient != nil {
-                print("✅ Successfully added ingredient.")
-                // Clear the text fields
-                newIngredientName = ""
-                newIngredientQuantity = ""
-                // Refresh the list to show the new ingredient
-                fetchIngredients()
-            }
-        }
-    }
-    
-    private func generateRecipes(token: String) {
+        guard let token = authManager.accessToken else { return }
         isLoading = true
-        let selectedIngredients = ingredients.filter { $0.isSelected }
-        let ingredientNames = selectedIngredients.map { $0.name }
-        NetworkService.shared.generateRecipes(ingredients: ingredientNames, accessToken: token) { fetchedRecipes, error in
+        NetworkService.shared.fetchIngredients(accessToken: token) { fetched, _ in
             isLoading = false
-            if let error = error {
-                print("❌ Error generating recipes: \(error.localizedDescription)")
-                return
-            }
-            
-            if let fetchedRecipes = fetchedRecipes {
-                print("✅ Successfully generated \(fetchedRecipes.count) recipes.")
-                self.recipes = fetchedRecipes
+            if let fetched = fetched { self.ingredients = fetched }
+        }
+    }
+    
+    func addIngredient(name: String, quantity: String) {
+        guard !name.isEmpty, let token = authManager.accessToken else { return }
+        NetworkService.shared.addIngredient(name: name, quantity: quantity.isEmpty ? "1" : quantity, accessToken: token) { new, _ in
+            if let new = new { self.ingredients.append(new) }
+        }
+    }
+    
+    func deleteIngredient(at offsets: IndexSet) {
+        guard let token = authManager.accessToken else { return }
+        let toDelete = offsets.map { ingredients[$0] }
+        for ingredient in toDelete {
+            NetworkService.shared.deleteIngredient(id: ingredient.id, accessToken: token) { success, _ in
+                if success { self.ingredients.removeAll { $0.id == ingredient.id } }
             }
         }
+    }
+    
+    func saveNewQuantity(for ingredient: Ingredient, newQuantity: String) {
+        guard let token = authManager.accessToken else { return }
+        NetworkService.shared.updateIngredientQuantity(id: ingredient.id, newQuantity: newQuantity, accessToken: token) { updated, _ in
+            if let updated = updated, let index = self.ingredients.firstIndex(where: { $0.id == updated.id }) {
+                self.ingredients[index] = updated
+            }
+        }
+    }
+    
+    func generateRecipes() {
+        guard let token = authManager.accessToken else { return }
+        let names = ingredients.filter { $0.isSelected }.map { $0.name }
+        if names.isEmpty { return }
+        
+        isLoading = true
+        NetworkService.shared.generateRecipes(ingredients: names, accessToken: token) { fetched, _ in
+            isLoading = false
+            if let fetched = fetched {
+                self.recipes = fetched
+                self.selectedTab = .recipes
+            }
+        }
+    }
+
+    func addIngredientsFromVoice(text: String) {
+        guard let token = authManager.accessToken else { return }
+        NetworkService.shared.parseTextForPreview(text: text, accessToken: token) { preview, _ in
+            if let preview = preview, !preview.isEmpty {
+                self.ingredientsToConfirm = preview
+                self.showingConfirmationSheet = true
+            }
+        }
+    }
+    
+    func confirmAndAddIngredients() {
+        for ingredient in ingredientsToConfirm {
+            addIngredient(name: ingredient.name, quantity: ingredient.quantity)
+        }
+        ingredientsToConfirm = []
     }
 }
