@@ -29,7 +29,7 @@ class AuthenticationManager: ObservableObject {
         func login() {
             Auth0
                 .webAuth()
-                .audience("https://api.fridge.com") // <-- Must match the Identifier in your Auth0 API settings
+                .audience("https://api.gridge.com") // <-- Must match the Identifier in your Auth0 API settings
                 .scope("openid profile email") // request ID token claims too
                 .start { result in
                     switch result {
