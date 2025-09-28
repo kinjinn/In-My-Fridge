@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct RecipesView: View {
-    var recipes: [Recipe]
-    
+    @Binding var recipes: [Recipe]
+
     @State private var expandedRecipeID: UUID?
 
     var body: some View {

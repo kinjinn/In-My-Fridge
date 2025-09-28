@@ -36,7 +36,7 @@ struct ContentView: View {
                     }
                     
                 case .recipes:
-                    RecipesView(recipes: recipes)
+                    RecipesView(recipes: $recipes)
                 }
                 
                 // Custom Tab Bar
@@ -90,58 +90,43 @@ struct ContentView: View {
     // MARK: - Network and helper functions (unchanged)
     
     func fetchIngredients() {
-            guard let accessToken = authManager.accessToken else { return }
-            
-            NetworkService.shared.fetchIngredients(accessToken: accessToken) { fetchedIngredients, error in
-                if let error = error {
-                    print("❌ Error fetching ingredients: \(error.localizedDescription)")
-                    // Clear the list if there's an error (like user not found)
-                    self.ingredients = []
-                    return
-                }
-                if let fetchedIngredients = fetchedIngredients {
-                    print("✅ Successfully fetched \(fetchedIngredients.count) ingredients.")
-                    self.ingredients = fetchedIngredients
-                }
+        guard let accessToken = authManager.accessToken else { return }
+        
+        NetworkService.shared.fetchIngredients(accessToken: accessToken) { fetchedIngredients, error in
+            if let error = error {
+                print("❌ Error fetching ingredients: \(error.localizedDescription)")
+                // Clear the list if there's an error (like user not found)
+                self.ingredients = []
+                return
+            }
+            if let fetchedIngredients = fetchedIngredients {
+                print("✅ Successfully fetched \(fetchedIngredients.count) ingredients.")
+                self.ingredients = fetchedIngredients
             }
         }
+    }
     
     func addIngredient() {
-            guard !newIngredientName.isEmpty, let accessToken = authManager.accessToken else { return }
+        guard !newIngredientName.isEmpty, let accessToken = authManager.accessToken else { return }
+        
+        NetworkService.shared.addIngredient(name: newIngredientName, quantity: newIngredientQuantity, accessToken: accessToken) { newIngredient, error in
+            if let error = error {
+                print("❌ Error adding ingredient: \(error.localizedDescription)")
+                return
+            }
             
-            NetworkService.shared.addIngredient(name: newIngredientName, quantity: newIngredientQuantity, accessToken: accessToken) { newIngredient, error in
-                if let error = error {
-                    print("❌ Error adding ingredient: \(error.localizedDescription)")
-                    return
-                }
-                
-                if newIngredient != nil {
-                    print("✅ Successfully added ingredient.")
-                    // Clear the text fields
-                    newIngredientName = ""
-                    newIngredientQuantity = ""
-                    // Refresh the list to show the new ingredient
-                    fetchIngredients()
-                }
+            if newIngredient != nil {
+                print("✅ Successfully added ingredient.")
+                // Clear the text fields
+                newIngredientName = ""
+                newIngredientQuantity = ""
+                // Refresh the list to show the new ingredient
+                fetchIngredients()
             }
         }
+    }
     
     private func generateRecipes(token: String) {
-<<<<<<< Updated upstream
-                isLoading = true
-                let ingredientNames = ingredients.map { $0.name } // Get just the names
-                NetworkService.shared.generateRecipes(ingredients: ingredientNames, accessToken: token) { fetchedRecipes, error in
-                    isLoading = false
-                    if let error = error {
-                        print("❌ Error generating recipes: \(error.localizedDescription)")
-                        return
-                    }
-                    if let fetchedRecipes = fetchedRecipes {
-                        print("✅ Successfully generated \(fetchedRecipes.count) recipes.")
-                        self.recipes = fetchedRecipes
-                    }
-                }
-=======
         isLoading = true
         let selectedIngredients = ingredients.filter { $0.isSelected }
         let ingredientNames = selectedIngredients.map { $0.name }
@@ -150,6 +135,12 @@ struct ContentView: View {
             if let error = error {
                 print("❌ Error generating recipes: \(error.localizedDescription)")
                 return
->>>>>>> Stashed changes
             }
+            
+            if let fetchedRecipes = fetchedRecipes {
+                print("✅ Successfully generated \(fetchedRecipes.count) recipes.")
+                self.recipes = fetchedRecipes
+            }
+        }
+    }
 }
