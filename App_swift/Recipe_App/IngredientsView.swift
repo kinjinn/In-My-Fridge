@@ -32,13 +32,17 @@ struct IngredientsView: View {
                             .foregroundColor(.secondary)
                             .padding()
                     } else {
-                        ForEach(ingredients) { ingredient in
-                            HStack {
-                                Text(ingredient.name)
-                                Spacer()
-                                Text("Qty: \(ingredient.quantity)")
-                                    .foregroundColor(.secondary)
+                        ForEach($ingredients) { $ingredient in
+                            Toggle(isOn: $ingredient.isSelected) {
+                                VStack(alignment: .leading) {
+                                    Text(ingredient.name)
+                                        .font(.headline)
+                                    Text("Qty: \(ingredient.quantity)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
                             }
+                            .toggleStyle(CheckboxToggleStyle())
                         }
                     }
                 }
@@ -59,3 +63,20 @@ struct IngredientsView: View {
         }
     }
 }
+
+struct CheckboxToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button(action: {
+            configuration.isOn.toggle()
+        }) {
+            HStack {
+                Image(systemName: configuration.isOn ? "checkmark.square.fill" : "square")
+                    .foregroundColor(configuration.isOn ? .purple : .gray)
+                    .imageScale(.large)
+                configuration.label
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+

@@ -127,6 +127,7 @@ struct ContentView: View {
         }
     
     private func generateRecipes(token: String) {
+<<<<<<< Updated upstream
                 isLoading = true
                 let ingredientNames = ingredients.map { $0.name } // Get just the names
                 NetworkService.shared.generateRecipes(ingredients: ingredientNames, accessToken: token) { fetchedRecipes, error in
@@ -140,5 +141,15 @@ struct ContentView: View {
                         self.recipes = fetchedRecipes
                     }
                 }
+=======
+        isLoading = true
+        let selectedIngredients = ingredients.filter { $0.isSelected }
+        let ingredientNames = selectedIngredients.map { $0.name }
+        NetworkService.shared.generateRecipes(ingredients: ingredientNames, accessToken: token) { fetchedRecipes, error in
+            isLoading = false
+            if let error = error {
+                print("❌ Error generating recipes: \(error.localizedDescription)")
+                return
+>>>>>>> Stashed changes
             }
 }

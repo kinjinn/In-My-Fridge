@@ -6,6 +6,8 @@ struct Ingredient: Codable, Identifiable {
     let id: String
     let name: String
     let quantity: String
+    
+    var isSelected: Bool = false;
 
     // This maps the "_id" from MongoDB to "id" in our struct
     private enum CodingKeys: String, CodingKey {
