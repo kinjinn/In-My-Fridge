@@ -96,7 +96,7 @@ struct ContentView: View {
     @ViewBuilder
     private var loggedOutContent: some View {
         VStack {
-            Text("Recipe App 🍳").font(.largeTitle).padding()
+            Text("Next Meal 🍳").font(.largeTitle).padding()
             Button("Log In", action: authManager.login).buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
