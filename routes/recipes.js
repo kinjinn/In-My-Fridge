@@ -1,51 +1,65 @@
 // routes/recipes.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { checkJwt } = require('../middleware/auth');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-require('dotenv').config();
+const { checkJwt } = require("../middleware/auth");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+require("dotenv").config();
+
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is not set in the environment variables.");
+}
 
 // Initialize the Google Generative AI client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// === POST /api/recipes/generate ===
-router.post('/generate', checkJwt, async (req, res) => {
+router.post("/generate", checkJwt, async (req, res) => {
   try {
     const { ingredients } = req.body;
 
     if (!ingredients || ingredients.length === 0) {
-      return res.status(400).json({ message: 'Ingredients are required.' });
+      return res.status(400).json({ message: "Ingredients are required." });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+    });
 
-    // --- This is our Prompt Engineering! ---
     const prompt = `
-      You are a creative chef. Based ONLY on the following list of ingredients, create 2 simple recipes.
-      Available ingredients: ${ingredients.join(', ')}.
-      You can assume the user has basic pantry items like salt, pepper, oil, and water.
-      Your response MUST be a valid JSON array of objects. Do not include any text before or after the JSON array.
-      Each object in the array should have the following structure:
-      {
-        "title": "Recipe Title",
-        "description": "A short, appealing description of the dish.",
-        "ingredients_used": ["list", "of", "ingredients", "from the provided list"],
-        "instructions": ["Step 1", "Step 2", "Step 3"]
-      }
+    You are a recipe API. Your only function is to return valid JSON.
+    Based on this list of ingredients: ${ingredients.join(", ")}.
+    Assume basic pantry items like salt, pepper, oil, water.
+    Generate 2 simple recipes.
+    Your entire response must be ONLY a valid JSON array of objects.
+    Do NOT include any explanatory text, markdown, or anything before or after the opening and closing brackets.
+    Each object must have this exact structure:
+    {
+      "title": "...",
+      "description": "...",
+      "ingredients_used": ["...", "..."],
+      "instructions": ["...", "..."]
+    }
     `;
 
+    // ✅ fixed: no need to await `result.response` separately
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const text = result.response.text();
 
-    // Clean the response to ensure it's valid JSON
-    const jsonResponse = JSON.parse(text.replace(/```json/g, '').replace(/```/g, ''));
+    console.log("--- RAW RESPONSE FROM GEMINI ---");
+    console.log(text);
+    console.log("--------------------------------");
 
-    res.json(jsonResponse);
-
+    try {
+      const jsonResponse = JSON.parse(
+        text.replace(/```json/g, "").replace(/```/g, "")
+      );
+      res.json(jsonResponse);
+    } catch (parseError) {
+      console.error("Failed to parse JSON from Gemini:", parseError);
+      res.status(500).json({ message: "AI response was not valid JSON." });
+    }
   } catch (error) {
-    console.error('Error generating recipes:', error);
-    res.status(500).json({ message: 'Failed to generate recipes.' });
+    console.error("Error generating recipes:", error);
+    res.status(500).json({ message: "Failed to contact the AI service." });
   }
 });
 

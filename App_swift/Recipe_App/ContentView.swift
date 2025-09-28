@@ -1,60 +1,93 @@
-// ContentView.swift
 import SwiftUI
 import Auth0
 
 struct ContentView: View {
     @StateObject var authManager = AuthenticationManager()
-    @State private var ingredients: [Ingredient] = []
     
-    // State for the new ingredient form
+    @State private var ingredients: [Ingredient] = []
+    @State private var recipes: [Recipe] = []
+    @State private var isLoading = false
+    
     @State private var newIngredientName = ""
     @State private var newIngredientQuantity = ""
-
+    
+    @State private var selectedTab: Tab = .fridge
+    
+    enum Tab {
+        case fridge, recipes
+    }
+    
     var body: some View {
-        VStack {
-            if authManager.isAuthenticated {
-                // --- Logged In View ---
-                Text("My Ingredients")
-                    .font(.title)
-                    .padding(.bottom)
-
-                // --- FORM TO ADD NEW INGREDIENT ---
-                HStack {
-                    TextField("Ingredient Name", text: $newIngredientName)
-                    TextField("Quantity", text: $newIngredientQuantity)
-                    Button("Add", action: addIngredient)
-                        .buttonStyle(.borderedProminent)
-                }
-                .padding()
-
-                // --- LIST OF EXISTING INGREDIENTS ---
-                List(ingredients) { ingredient in
-                    VStack(alignment: .leading) {
-                        Text(ingredient.name).font(.headline)
-                        Text("Quantity: \(ingredient.quantity)").font(.subheadline)
+        VStack(spacing: 0) {
+            if authManager.isAuthenticated, let accessToken = authManager.accessToken {
+                // Show content based on selected tab
+                switch selectedTab {
+                case .fridge:
+                    IngredientsView(
+                        ingredients: $ingredients,
+                        newIngredientName: $newIngredientName,
+                        newIngredientQuantity: $newIngredientQuantity,
+                        isLoading: $isLoading,
+                        onAddIngredient: addIngredient,
+                        onGenerateRecipes: { generateRecipes(token: accessToken) }
+                    )
+                    .onAppear {
+                        fetchIngredients()
                     }
-                }
-                .onAppear {
-                    // Fetch ingredients when the view first appears
-                    fetchIngredients()
+                    
+                case .recipes:
+                    RecipesView(recipes: $recipes)
                 }
                 
-                Spacer()
+                // Custom Tab Bar
+                HStack(spacing: 0) {
+                    tabButton(title: "Fridge", isSelected: selectedTab == .fridge) {
+                        selectedTab = .fridge
+                    }
+                    tabButton(title: "Recipes", isSelected: selectedTab == .recipes) {
+                        selectedTab = .recipes
+                    }
+                }
+                .background(Color(UIColor.systemGray5))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                
+                // Log Out button at bottom
                 Button("Log Out", action: authManager.logout)
-
+                    .padding(.bottom)
+                    .foregroundColor(.blue)
+                
             } else {
-                // --- Logged Out View ---
-                Text("Recipe App 🍳")
-                    .font(.largeTitle)
-                    .padding()
-                Button("Log In", action: authManager.login)
-                    .buttonStyle(.borderedProminent)
+                // Logged out view
+                VStack {
+                    Text("Recipe App 🍳")
+                        .font(.largeTitle)
+                        .padding()
+                    Button("Log In", action: authManager.login)
+                        .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground))
             }
         }
         .padding()
+        .background(Color(UIColor.systemGray6).ignoresSafeArea())
     }
-
-    // --- Helper Functions ---
+    
+    @ViewBuilder
+    func tabButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(isSelected ? Color.purple.opacity(0.2) : Color.clear)
+                .foregroundColor(isSelected ? .purple : .primary)
+                .cornerRadius(10)
+        }
+    }
+    
+    // MARK: - Network and helper functions (unchanged)
     
     func fetchIngredients() {
         guard let accessToken = authManager.accessToken else { return }
@@ -89,6 +122,24 @@ struct ContentView: View {
                 newIngredientQuantity = ""
                 // Refresh the list to show the new ingredient
                 fetchIngredients()
+            }
+        }
+    }
+    
+    private func generateRecipes(token: String) {
+        isLoading = true
+        let selectedIngredients = ingredients.filter { $0.isSelected }
+        let ingredientNames = selectedIngredients.map { $0.name }
+        NetworkService.shared.generateRecipes(ingredients: ingredientNames, accessToken: token) { fetchedRecipes, error in
+            isLoading = false
+            if let error = error {
+                print("❌ Error generating recipes: \(error.localizedDescription)")
+                return
+            }
+            
+            if let fetchedRecipes = fetchedRecipes {
+                print("✅ Successfully generated \(fetchedRecipes.count) recipes.")
+                self.recipes = fetchedRecipes
             }
         }
     }
