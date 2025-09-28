@@ -1,4 +1,5 @@
 import SwiftUI
+import Auth0
 
 struct ContentView: View {
     @StateObject var authManager = AuthenticationManager()
@@ -16,6 +17,8 @@ struct ContentView: View {
     @State private var ingredientsToConfirm: [Ingredient] = []
     @State private var showingConfirmationSheet = false
     @State private var showingVoiceInput = false
+    @State private var showingCamera = false
+    @State private var capturedImage: UIImage?
 
     enum Tab { case fridge, recipes }
     
@@ -28,6 +31,15 @@ struct ContentView: View {
             }
         }
         .background(Color(.systemGray6).ignoresSafeArea())
+        .sheet(isPresented: $showingCamera) {
+            ImagePicker(image: $capturedImage)
+        }
+        .onChange(of: capturedImage) {
+            if let image = capturedImage {
+                uploadScannedImage(image: image)
+                capturedImage = nil // Reset after processing
+            }
+        }
     }
 
     @ViewBuilder
@@ -41,7 +53,8 @@ struct ContentView: View {
                     onSaveQuantity: saveNewQuantity,
                     onAdd: addIngredient,
                     onGenerate: generateRecipes,
-                    onAddByVoice: { showingVoiceInput = true }
+                    onAddByVoice: { showingVoiceInput = true },
+                    onShowCamera: { showingCamera = true }
                 )
             } else {
                 RecipesView(recipes: $recipes)
@@ -60,7 +73,6 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showingConfirmationSheet) {
-            // Use the new, separate view to prevent rendering bugs
             ConfirmationSheetView(
                 ingredientsToConfirm: self.ingredientsToConfirm,
                 onCancel: { showingConfirmationSheet = false },
@@ -109,6 +121,37 @@ struct ContentView: View {
     }
 
     // MARK: - Helper Functions
+    
+    func uploadScannedImage(image: UIImage) {
+        guard let accessToken = authManager.accessToken else { return }
+        
+        isLoading = true
+        print("1. Starting image scan...")
+        
+        NetworkService.shared.scanIngredients(from: image, accessToken: accessToken) { scannedIngredients, error in
+            guard let ingredientsToAdd = scannedIngredients, error == nil else {
+                print("❌ Error scanning image: \(error?.localizedDescription ?? "Unknown error")")
+                isLoading = false
+                return
+            }
+            
+            print("2. Scanned \(ingredientsToAdd.count) ingredients. Now saving to database...")
+            
+            NetworkService.shared.batchAddIngredients(ingredients: ingredientsToAdd, accessToken: accessToken) { newIngredients, error in
+                isLoading = false
+                if let error = error {
+                    print("❌ Error batch-adding ingredients: \(error.localizedDescription)")
+                    return
+                }
+                
+                if newIngredients != nil {
+                    print("3. Successfully saved scanned ingredients. Refreshing list.")
+                    fetchIngredients()
+                }
+            }
+        }
+    }
+
     func fetchIngredients() {
         guard let token = authManager.accessToken else { return }
         isLoading = true
