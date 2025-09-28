@@ -55,13 +55,7 @@ class SpeechManager: ObservableObject {
         // Start the recognition task
         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { result, error in
             if let result = result {
-                // Update the recognized text
                 self.recognizedText = result.bestTranscription.formattedString
-                
-                // If it's the final result, stop the task
-                if result.isFinal {
-                    self.stopRecording()
-                }
             } else if let error = error {
                 print("Recognition error: \(error)")
                 self.stopRecording()

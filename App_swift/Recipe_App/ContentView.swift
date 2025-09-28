@@ -137,6 +137,7 @@ struct ContentView: View {
             
             print("2. Scanned \(ingredientsToAdd.count) ingredients. Now saving to database...")
             
+            // ✅ FIX: Call the batchAddIngredients function with the scanned results
             NetworkService.shared.batchAddIngredients(ingredients: ingredientsToAdd, accessToken: accessToken) { newIngredients, error in
                 isLoading = false
                 if let error = error {
@@ -169,13 +170,24 @@ struct ContentView: View {
     }
     
     func deleteIngredient(at offsets: IndexSet) {
-        guard let token = authManager.accessToken else { return }
-        let toDelete = offsets.map { ingredients[$0] }
-        for ingredient in toDelete {
-            NetworkService.shared.deleteIngredient(id: ingredient.id, accessToken: token) { success, _ in
-                if success { self.ingredients.removeAll { $0.id == ingredient.id } }
+        guard let accessToken = authManager.accessToken else { return }
+        
+        // Get the ingredients to delete based on the row indexes
+        let ingredientsToDelete = offsets.map { ingredients[$0] }
+        
+        // Loop through them and call the network service for each
+        for ingredient in ingredientsToDelete {
+            NetworkService.shared.deleteIngredient(id: ingredient.id, accessToken: accessToken) { success, error in
+                if success {
+                    print("✅ Successfully deleted \(ingredient.name) from database.")
+                } else {
+                    print("❌ Error deleting ingredient: \(error?.localizedDescription ?? "Unknown error")")
+                }
             }
         }
+        
+        // Immediately remove the ingredients from the local array for a responsive UI
+        ingredients.remove(atOffsets: offsets)
     }
     
     func saveNewQuantity(for ingredient: Ingredient, newQuantity: String) {
@@ -213,9 +225,25 @@ struct ContentView: View {
     }
     
     func confirmAndAddIngredients() {
-        for ingredient in ingredientsToConfirm {
-            addIngredient(name: ingredient.name, quantity: ingredient.quantity)
+        guard let accessToken = authManager.accessToken, !ingredientsToConfirm.isEmpty else { return }
+        
+        // Convert the confirmed Ingredient models to ScannedIngredient models for the API
+        let scannedIngredients = ingredientsToConfirm.map {
+            ScannedIngredient(name: $0.name, quantity: $0.quantity)
         }
-        ingredientsToConfirm = []
+        
+        print("Confirming and adding \(scannedIngredients.count) ingredients from voice...")
+        
+        // ✅ FIX: Call the batchAddIngredients function with the voice results
+        NetworkService.shared.batchAddIngredients(ingredients: scannedIngredients, accessToken: accessToken) { newIngredients, error in
+            if let error = error {
+                print("❌ Error batch-adding ingredients from voice: \(error.localizedDescription)")
+            } else if newIngredients != nil {
+                print("✅ Successfully saved voice ingredients. Refreshing list.")
+                fetchIngredients()
+            }
+            // Clear the confirmation list regardless of success or failure
+            self.ingredientsToConfirm = []
+        }
     }
 }
