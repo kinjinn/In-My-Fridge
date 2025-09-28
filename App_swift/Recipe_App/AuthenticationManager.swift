@@ -7,29 +7,11 @@ class AuthenticationManager: ObservableObject {
     @Published var isAuthenticated = false
     @Published var userProfile: UserInfo?
     @Published var accessToken: String?
-
-//    func login() {
-//        Auth0
-//            .webAuth()
-//            .start { result in
-//                switch result {
-//                case .success(let credentials):
-//                    // Login was successful, now save credentials...
-//                    self.isAuthenticated = true
-//                    self.accessToken = credentials.accessToken
-//                    
-//                    // ...and fetch the user's profile separately.
-//                    self.fetchUserProfile(credentials: credentials) // <-- FIX #2: Call new function
-//
-//                case .failure(let error):
-//                    print("❌ Failed with login: \(error.localizedDescription)")
-//                }
-//            }
-//    }
-        func login() {
+    
+    func login() {
             Auth0
                 .webAuth()
-                .audience("https://api.fridge.com") // <-- Must match the Identifier in your Auth0 API settings
+                .audience("https://api.gridge.com") // <-- Must match the Identifier in your Auth0 API settings
                 .scope("openid profile email") // request ID token claims too
                 .start { result in
                     switch result {
@@ -40,7 +22,7 @@ class AuthenticationManager: ObservableObject {
                         // Fetch user profile with the access token
                         self.fetchUserProfile(credentials: credentials)
 
-                        print("✅ Access Token: \(credentials.accessToken ?? "none")")
+                        print("✅ Access Token: \(credentials.accessToken)")
                     case .failure(let error):
                         print("❌ Failed with login: \(error.localizedDescription)")
                     }

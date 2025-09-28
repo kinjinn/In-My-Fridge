@@ -1,3 +1,4 @@
+// IngredientsView.swift
 import SwiftUI
 
 struct IngredientsView: View {
@@ -6,6 +7,8 @@ struct IngredientsView: View {
     @Binding var newIngredientQuantity: String
     @Binding var isLoading: Bool
     
+    // ✅ FIX: Add the new closure
+    var onShowCamera: () -> Void
     var onAddIngredient: () -> Void
     var onGenerateRecipes: () -> Void
     
@@ -22,9 +25,14 @@ struct IngredientsView: View {
                     .textFieldStyle(.roundedBorder)
                 Button("Add", action: onAddIngredient)
                     .buttonStyle(.borderedProminent)
+                
+                // ✅ FIX: Add the camera button
+                Button(action: onShowCamera) {
+                    Image(systemName: "camera.fill")
+                }
+                .buttonStyle(.bordered)
             }
             .padding(.horizontal)
-            
             List {
                 Section(header: Text("In Your Fridge")) {
                     if ingredients.isEmpty {
@@ -64,6 +72,7 @@ struct IngredientsView: View {
     }
 }
 
+// Your CheckboxToggleStyle is perfect and needs no changes.
 struct CheckboxToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         Button(action: {
@@ -79,4 +88,3 @@ struct CheckboxToggleStyle: ToggleStyle {
         .buttonStyle(PlainButtonStyle())
     }
 }
-

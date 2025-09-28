@@ -2,7 +2,7 @@
 import Foundation
 
 // Conforms to Codable to be decoded from JSON and Identifiable for SwiftUI Lists
-struct Ingredient: Codable, Identifiable {
+struct Ingredient: Codable, Identifiable, Sendable {
     let id: String
     let name: String
     let quantity: String

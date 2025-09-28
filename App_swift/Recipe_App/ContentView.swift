@@ -13,6 +13,9 @@ struct ContentView: View {
     
     @State private var selectedTab: Tab = .fridge
     
+    @State private var showingCamera = false
+    @State private var capturedImage: UIImage?
+    
     enum Tab {
         case fridge, recipes
     }
@@ -20,24 +23,25 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             if authManager.isAuthenticated, let accessToken = authManager.accessToken {
-                // Show content based on selected tab
-                switch selectedTab {
-                case .fridge:
-                    IngredientsView(
-                        ingredients: $ingredients,
-                        newIngredientName: $newIngredientName,
-                        newIngredientQuantity: $newIngredientQuantity,
-                        isLoading: $isLoading,
-                        onAddIngredient: addIngredient,
-                        onGenerateRecipes: { generateRecipes(token: accessToken) }
-                    )
-                    .onAppear {
-                        fetchIngredients()
+                // Main content area
+                Group {
+                    switch selectedTab {
+                    case .fridge:
+                        IngredientsView(
+                            ingredients: $ingredients,
+                            newIngredientName: $newIngredientName,
+                            newIngredientQuantity: $newIngredientQuantity,
+                            isLoading: $isLoading,
+                            onShowCamera: { showingCamera = true },
+                            onAddIngredient: addIngredient,
+                            onGenerateRecipes: { generateRecipes(token: accessToken) }
+                        )
+                    case .recipes:
+                        RecipesView(recipes: $recipes)
                     }
-                    
-                case .recipes:
-                    RecipesView(recipes: $recipes)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
                 
                 // Custom Tab Bar
                 HStack(spacing: 0) {
@@ -53,7 +57,6 @@ struct ContentView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
                 
-                // Log Out button at bottom
                 Button("Log Out", action: authManager.logout)
                     .padding(.bottom)
                     .foregroundColor(.blue)
@@ -71,8 +74,21 @@ struct ContentView: View {
                 .background(Color(.systemBackground))
             }
         }
-        .padding()
         .background(Color(UIColor.systemGray6).ignoresSafeArea())
+        .sheet(isPresented: $showingCamera) {
+            ImagePicker(image: $capturedImage)
+        }
+        .onChange(of: capturedImage) {
+            if let image = capturedImage{
+                uploadScannedImage(image: image)
+                capturedImage = nil
+            }
+        }
+        .onAppear {
+             if authManager.isAuthenticated {
+                 fetchIngredients()
+             }
+         }
     }
     
     @ViewBuilder
@@ -87,20 +103,47 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Network and helper functions (unchanged)
+    // MARK: - Network and helper functions
+    
+    // ✅ THIS FUNCTION IS NOW COMPLETE
+    func uploadScannedImage(image: UIImage) {
+        guard let accessToken = authManager.accessToken else { return }
+        
+        isLoading = true
+        print("1. Starting image scan...")
+        
+        // Step 1: Scan the image to get the list of ingredients from the AI
+        NetworkService.shared.scanIngredients(from: image, accessToken: accessToken) { scannedIngredients, error in
+            guard let ingredientsToAdd = scannedIngredients, error == nil else {
+                print("❌ Error scanning image: \(error?.localizedDescription ?? "Unknown error")")
+                isLoading = false
+                return
+            }
+            
+            print("2. Scanned \(ingredientsToAdd.count) ingredients from image. Now saving to database...")
+            
+            // Step 2: Send that list to the server to be saved in the database
+            NetworkService.shared.batchAddIngredients(ingredients: ingredientsToAdd, accessToken: accessToken) { newIngredients, error in
+                isLoading = false // End loading indicator
+                if let error = error {
+                    print("❌ Error batch-adding ingredients: \(error.localizedDescription)")
+                    return
+                }
+                
+                if newIngredients != nil {
+                    print("3. Successfully saved scanned ingredients. Refreshing list.")
+                    // Step 3: Refresh the UI to show the new ingredients
+                    fetchIngredients()
+                }
+            }
+        }
+    }
     
     func fetchIngredients() {
         guard let accessToken = authManager.accessToken else { return }
         
         NetworkService.shared.fetchIngredients(accessToken: accessToken) { fetchedIngredients, error in
-            if let error = error {
-                print("❌ Error fetching ingredients: \(error.localizedDescription)")
-                // Clear the list if there's an error (like user not found)
-                self.ingredients = []
-                return
-            }
             if let fetchedIngredients = fetchedIngredients {
-                print("✅ Successfully fetched \(fetchedIngredients.count) ingredients.")
                 self.ingredients = fetchedIngredients
             }
         }
@@ -110,17 +153,9 @@ struct ContentView: View {
         guard !newIngredientName.isEmpty, let accessToken = authManager.accessToken else { return }
         
         NetworkService.shared.addIngredient(name: newIngredientName, quantity: newIngredientQuantity, accessToken: accessToken) { newIngredient, error in
-            if let error = error {
-                print("❌ Error adding ingredient: \(error.localizedDescription)")
-                return
-            }
-            
             if newIngredient != nil {
-                print("✅ Successfully added ingredient.")
-                // Clear the text fields
                 newIngredientName = ""
                 newIngredientQuantity = ""
-                // Refresh the list to show the new ingredient
                 fetchIngredients()
             }
         }
@@ -128,17 +163,10 @@ struct ContentView: View {
     
     private func generateRecipes(token: String) {
         isLoading = true
-        let selectedIngredients = ingredients.filter { $0.isSelected }
-        let ingredientNames = selectedIngredients.map { $0.name }
+        let ingredientNames = ingredients.filter { $0.isSelected }.map { $0.name }
         NetworkService.shared.generateRecipes(ingredients: ingredientNames, accessToken: token) { fetchedRecipes, error in
             isLoading = false
-            if let error = error {
-                print("❌ Error generating recipes: \(error.localizedDescription)")
-                return
-            }
-            
             if let fetchedRecipes = fetchedRecipes {
-                print("✅ Successfully generated \(fetchedRecipes.count) recipes.")
                 self.recipes = fetchedRecipes
             }
         }

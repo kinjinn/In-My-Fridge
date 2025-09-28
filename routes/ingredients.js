@@ -2,8 +2,25 @@
 const express = require("express");
 const router = express.Router();
 const Ingredient = require("../models/Ingredient");
-const User = require("../models/User"); // We need the User model now
-const { checkJwt } = require("../middleware/auth"); // Import our security middleware
+const User = require("../models/User");
+const { checkJwt } = require("../middleware/auth");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+// --- NEW CODE FOR IMAGE UPLOADS AND AI ---
+const multer = require("multer");
+const upload = multer({ storage: multer.memoryStorage() }); // Store image in memory
+
+// Helper function to convert image buffer to base64
+function bufferToBase64(buffer) {
+  return buffer.toString("base64");
+}
+
+// Make sure GEMINI_API_KEY is in your .env file
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is not set in the environment variables.");
+}
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// --- END NEW CODE ---
 
 // === GET /api/ingredients ===
 // Fetches all ingredients for the LOGGED IN user
@@ -14,7 +31,7 @@ router.get("/", checkJwt, async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    const ingredients = await Ingredient.find({ owner: user._id }); // Find ingredients by our database user ID
+    const ingredients = await Ingredient.find({ owner: user._id });
     res.json(ingredients);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -28,9 +45,7 @@ router.post("/", checkJwt, async (req, res) => {
     const auth0Id = req.auth.payload.sub;
     let user = await User.findOne({ auth0Id: auth0Id });
 
-    // If the user doesn't exist in our DB, create them
     if (!user) {
-      // NOTE: In a real app, you might get the email from the token payload as well
       user = new User({ auth0Id: auth0Id, email: "user@example.com" });
       await user.save();
     }
@@ -38,13 +53,82 @@ router.post("/", checkJwt, async (req, res) => {
     const ingredient = new Ingredient({
       name: req.body.name,
       quantity: req.body.quantity,
-      owner: user._id, // Link to our database user ID
+      owner: user._id,
     });
 
     const newIngredient = await ingredient.save();
     res.status(201).json(newIngredient);
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+});
+
+// ==========================================================
+// === NEW ENDPOINTS FOR IMAGE SCANNING AND BATCH ADDING ===
+// ==========================================================
+
+// === POST /api/ingredients/scan ===
+// Receives an image, sends it to Gemini, and returns a list of ingredients
+router.post("/scan", checkJwt, upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file uploaded." });
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+
+    const imagePart = {
+      inlineData: {
+        data: bufferToBase64(req.file.buffer),
+        mimeType: req.file.mimetype,
+      },
+    };
+
+    const prompt = `
+      Analyze the food items in this image of a fridge or pantry.
+      Identify only the primary, edible food items. Ignore containers, brands, and non-food objects.
+      Your response MUST be ONLY a valid JSON array of objects. Do not include any text before or after the JSON.
+      Each object must have this exact structure: { "name": "...", "quantity": "..." }.
+      For quantity, provide a reasonable estimate (e.g., "1 bottle", "half a carton", "about 2"). If you cannot determine the quantity, use "1".
+      Example response: [{"name": "Milk", "quantity": "1 gallon"}, {"name": "Eggs", "quantity": "1 dozen"}]
+    `;
+
+    const result = await model.generateContent([prompt, imagePart]);
+    const text = result.response.text();
+
+    console.log("--- RAW RESPONSE FROM GEMINI VISION ---");
+    console.log(text);
+    console.log("-------------------------------------");
+
+    const jsonResponse = JSON.parse(text);
+    res.json(jsonResponse);
+  } catch (error) {
+    console.error("Error scanning image:", error);
+    res.status(500).json({ message: "Failed to process image." });
+  }
+});
+
+// === POST /api/ingredients/batch-add ===
+// Adds an array of ingredients to the database for the logged-in user
+router.post("/batch-add", checkJwt, async (req, res) => {
+  try {
+    const auth0Id = req.auth.payload.sub;
+    const user = await User.findOne({ auth0Id });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const ingredientsToAdd = req.body.ingredients.map((scannedIngredient) => ({
+      ...scannedIngredient,
+      owner: user._id,
+    }));
+
+    const newIngredients = await Ingredient.insertMany(ingredientsToAdd);
+    res.status(201).json(newIngredients);
+  } catch (error) {
+    console.error("Error adding ingredients in batch:", error);
+    res.status(500).json({ message: "Failed to add ingredients." });
   }
 });
 

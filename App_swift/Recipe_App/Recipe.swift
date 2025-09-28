@@ -1,7 +1,7 @@
 // Recipe.swift
 import Foundation
 
-struct Recipe: Codable, Identifiable {
+struct Recipe: Codable, Identifiable, Sendable {
     let id = UUID() // Add a unique ID for SwiftUI
     let title: String
     let description: String?
