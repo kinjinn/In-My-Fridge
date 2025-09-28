@@ -28,7 +28,7 @@ router.post("/generate", checkJwt, async (req, res) => {
     You are a recipe API. Your only function is to return valid JSON.
     Based on this list of ingredients: ${ingredients.join(", ")}.
     Assume basic pantry items like salt, pepper, oil, water.
-    Generate 2 simple recipes.
+    Generate 5 simple recipes.
     Your entire response must be ONLY a valid JSON array of objects.
     Do NOT include any explanatory text, markdown, or anything before or after the opening and closing brackets.
     Each object must have this exact structure:
