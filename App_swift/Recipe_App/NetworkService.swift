@@ -70,31 +70,37 @@ class NetworkService {
     }
     
     func scanIngredients(from image: UIImage, accessToken: String, completion: @escaping ([ScannedIngredient]?, Error?) -> Void) {
-        guard let url = URL(string: "\(baseURL)/ingredients/scan") else { return }
+            guard let url = URL(string: "http://192.168.1.214:5001/api/ingredients/scan") else { return }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        
-        let boundary = UUID().uuidString
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            
+            let boundary = UUID().uuidString
+            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-        var data = Data()
-        data.append("\r\n--\(boundary)\r\n".data(using: .utf8)!)
-        data.append("Content-Disposition: form-data; name=\"image\"; filename=\"fridge.jpg\"\r\n".data(using: .utf8)!)
-        data.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
-        data.append(image.jpegData(compressionQuality: 0.8)!)
-        data.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+            var data = Data()
+            
+            // Add the image data to the request body
+            data.append("\r\n--\(boundary)\r\n".data(using: .utf8)!)
+            data.append("Content-Disposition: form-data; name=\"image\"; filename=\"fridge.jpg\"\r\n".data(using: .utf8)!)
+            data.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            data.append(image.jpegData(compressionQuality: 0.8)!)
+            data.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
 
-        URLSession.shared.uploadTask(with: request, from: data) { responseData, _, error in
-            DispatchQueue.main.async {
-                guard let responseData = responseData, error == nil else { completion(nil, error); return }
-                do {
-                    completion(try JSONDecoder().decode([ScannedIngredient].self, from: responseData), nil)
-                } catch { completion(nil, error) }
-            }
-        }.resume()
-    }
+            URLSession.shared.uploadTask(with: request, from: data) { responseData, response, error in
+                if let responseData = responseData {
+                    do {
+                        let ingredients = try JSONDecoder().decode([ScannedIngredient].self, from: responseData)
+                        DispatchQueue.main.async { completion(ingredients, nil) }
+                    } catch {
+                        DispatchQueue.main.async { completion(nil, error) }
+                    }
+                } else if let error = error {
+                    DispatchQueue.main.async { completion(nil, error) }
+                }
+            }.resume()
+        }
     
     func batchAddIngredients(ingredients: [ScannedIngredient], accessToken: String, completion: @escaping ([Ingredient]?, Error?) -> Void) {
         let body = ["ingredients": ingredients]

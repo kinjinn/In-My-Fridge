@@ -123,35 +123,37 @@ struct ContentView: View {
     // MARK: - Helper Functions
     
     func uploadScannedImage(image: UIImage) {
-        guard let accessToken = authManager.accessToken else { return }
-        
-        isLoading = true
-        print("1. Starting image scan...")
-        
-        NetworkService.shared.scanIngredients(from: image, accessToken: accessToken) { scannedIngredients, error in
-            guard let ingredientsToAdd = scannedIngredients, error == nil else {
-                print("❌ Error scanning image: \(error?.localizedDescription ?? "Unknown error")")
-                isLoading = false
-                return
-            }
+            guard let accessToken = authManager.accessToken else { return }
             
-            print("2. Scanned \(ingredientsToAdd.count) ingredients. Now saving to database...")
+            isLoading = true
+            print("1. Starting image scan...")
             
-            // ✅ FIX: Call the batchAddIngredients function with the scanned results
-            NetworkService.shared.batchAddIngredients(ingredients: ingredientsToAdd, accessToken: accessToken) { newIngredients, error in
-                isLoading = false
-                if let error = error {
-                    print("❌ Error batch-adding ingredients: \(error.localizedDescription)")
+            // Step 1: Scan the image to get the list of ingredients from the AI
+            NetworkService.shared.scanIngredients(from: image, accessToken: accessToken) { scannedIngredients, error in
+                guard let ingredientsToAdd = scannedIngredients, error == nil else {
+                    print("❌ Error scanning image: \(error?.localizedDescription ?? "Unknown error")")
+                    isLoading = false
                     return
                 }
                 
-                if newIngredients != nil {
-                    print("3. Successfully saved scanned ingredients. Refreshing list.")
-                    fetchIngredients()
+                print("2. Scanned \(ingredientsToAdd.count) ingredients. Now saving to database...")
+                
+                // Step 2: Send that list to the server to be saved in the database
+                NetworkService.shared.batchAddIngredients(ingredients: ingredientsToAdd, accessToken: accessToken) { newIngredients, error in
+                    isLoading = false // End loading indicator
+                    if let error = error {
+                        print("❌ Error batch-adding ingredients: \(error.localizedDescription)")
+                        return
+                    }
+                    
+                    if newIngredients != nil {
+                        print("3. Successfully saved scanned ingredients. Refreshing list.")
+                        // Step 3: Refresh the UI to show the new ingredients
+                        fetchIngredients()
+                    }
                 }
             }
         }
-    }
 
     func fetchIngredients() {
         guard let token = authManager.accessToken else { return }

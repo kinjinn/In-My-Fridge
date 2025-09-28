@@ -56,6 +56,13 @@ class SpeechManager: ObservableObject {
         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { result, error in
             if let result = result {
                 self.recognizedText = result.bestTranscription.formattedString
+                
+                // ✅ FIX: Remove this block so the sheet doesn't dismiss automatically
+                /*
+                if result.isFinal {
+                    self.stopRecording()
+                }
+                */
             } else if let error = error {
                 print("Recognition error: \(error)")
                 self.stopRecording()
