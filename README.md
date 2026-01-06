@@ -1,3 +1,5 @@
+Submited to: https://devpost.com/software/next-meal-sq3m76 
+
 ## Inspiration
 As college students, we often face the common issue of reaching the end of the week without knowing what to cook. We end up buying a lot of random ingredients that later on we don't need so they just occupy space in our pantry or fridge and stay there for months. That's how the idea for Next Meal came to our minds!
 
